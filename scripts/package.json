@@ -1,0 +1,18 @@
+{
+  "name": "webflow-webhook-server",
+  "version": "1.0.0",
+  "description": "Express.js webhook server for Webflow CMS data retrieval",
+  "type": "module",
+  "main": "webflow-webhook-server.js",
+  "scripts": {
+    "start": "node webflow-webhook-server.js",
+    "dev": "node --watch webflow-webhook-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
