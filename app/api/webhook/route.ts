@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
     const siteId = process.env.WEBFLOW_SITE_ID;
-    const collectionId = process.env.WEBFLOW_COLLECTION_ID;
+    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
 
     if (!apiToken || !siteId || !collectionId) {
       return NextResponse.json(
@@ -109,7 +109,7 @@ export async function GET() {
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
     const siteId = process.env.WEBFLOW_SITE_ID;
-    const collectionId = process.env.WEBFLOW_COLLECTION_ID;
+    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
 
     if (!apiToken || !siteId || !collectionId) {
       return NextResponse.json(
