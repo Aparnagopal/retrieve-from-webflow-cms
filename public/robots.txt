@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://retrieve-from-webflow-cms.vercel.app/sitemap.xml
