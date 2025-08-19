@@ -68,6 +68,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { email: string } }
 ) {
+  console.log("[v0] Dynamic email route hit with params:", params);
+  console.log("[v0] Request URL:", request.url);
+
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
     const siteId = process.env.WEBFLOW_SITE_ID;
@@ -81,6 +84,7 @@ export async function GET(
     }
 
     const userEmail = decodeURIComponent(params.email);
+    console.log("[v0] Decoded email:", userEmail);
 
     const { searchParams } = new URL(request.url);
     const applicationStatus =
@@ -92,7 +96,7 @@ export async function GET(
       applicationStatus: applicationStatus,
     };
 
-    console.log("Dynamic route filtering with:", filters);
+    console.log("[v0] Dynamic route filtering with:", filters);
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
