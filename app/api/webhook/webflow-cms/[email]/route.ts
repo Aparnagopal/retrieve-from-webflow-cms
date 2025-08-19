@@ -50,17 +50,28 @@ async function fetchWebflowCollection(
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
 // Handle OPTIONS request for CORS preflight
-export async function OPTIONS() {
-  return new NextResponse(null, {
+export async function OPTIONS(request: NextRequest) {
+  console.log("[v0] Dynamic route OPTIONS preflight request received");
+  console.log("[v0] Request origin:", request.headers.get("origin"));
+
+  const response = new NextResponse(null, {
     status: 200,
     headers: corsHeaders(),
   });
+
+  console.log(
+    "[v0] OPTIONS response headers:",
+    Object.fromEntries(response.headers.entries())
+  );
+  return response;
 }
 
 // Handle GET request with email as path parameter
