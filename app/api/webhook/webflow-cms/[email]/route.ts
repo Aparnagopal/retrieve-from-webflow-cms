@@ -52,8 +52,9 @@ function corsHeaders() {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
     "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma",
     "Access-Control-Max-Age": "86400",
+    "Access-Control-Allow-Credentials": "false",
   };
 }
 
@@ -61,17 +62,22 @@ function corsHeaders() {
 export async function OPTIONS(request: NextRequest) {
   console.log("[v0] Dynamic route OPTIONS preflight request received");
   console.log("[v0] Request origin:", request.headers.get("origin"));
-
-  const response = new NextResponse(null, {
-    status: 200,
-    headers: corsHeaders(),
-  });
-
   console.log(
-    "[v0] OPTIONS response headers:",
-    Object.fromEntries(response.headers.entries())
+    "[v0] Request method:",
+    request.headers.get("access-control-request-method")
   );
-  return response;
+  console.log(
+    "[v0] Request headers:",
+    request.headers.get("access-control-request-headers")
+  );
+
+  const headers = corsHeaders();
+  console.log("[v0] Returning OPTIONS response with headers:", headers);
+
+  return new NextResponse(null, {
+    status: 200,
+    headers: headers,
+  });
 }
 
 // Handle GET request with email as path parameter
