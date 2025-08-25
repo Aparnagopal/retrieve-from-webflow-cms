@@ -6,7 +6,7 @@ async function fetchWebflowCollection(
   siteId: string,
   filters?: { userName?: string; applicationStatus?: string }
 ) {
-  let url = `https://api.webflow.com/v2/collections/${collectionId}/items`;
+  let url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
 
   if (filters) {
     const params = new URLSearchParams();
@@ -40,7 +40,7 @@ async function fetchWebflowCollection(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("[Webflow API] Error fetching collection:", error);
+    console.error("Error fetching Webflow collection:", error);
     throw error;
   }
 }
@@ -49,13 +49,14 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
     "Access-Control-Max-Age": "86400", // Cache preflight for 24 hours
   };
 }
 
 export async function OPTIONS() {
-  console.log("[v1] OPTIONS request received for /api/webhook/webflow-cms");
+  console.log("[v0] Catch-all OPTIONS request received");
   return new NextResponse(null, {
     status: 200,
     headers: corsHeaders(),
@@ -66,7 +67,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { params: string[] } }
 ) {
-  console.log("[v1] GET request received with params:", params);
+  console.log("[v0] Catch-all GET request received with params:", params);
 
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
@@ -83,17 +84,17 @@ export async function GET(
     const email = params.params?.[0]
       ? decodeURIComponent(params.params[0])
       : null;
-    console.log("[v1] Extracted email from path:", email);
+    console.log("[v0] Extracted email from path:", email);
 
     const { searchParams } = new URL(request.url);
     const applicationStatus = searchParams.get("application-status");
 
     const filters = {
       userName: email,
-      applicationStatus: applicationStatus || "draft",
+      applicationStatus: applicationStatus,
     };
 
-    console.log("[v1] Filtering with:", filters);
+    console.log("[v0] Filtering with:", filters);
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
@@ -101,13 +102,6 @@ export async function GET(
       siteId,
       filters
     );
-
-    if (!collectionData.items || collectionData.items.length === 0) {
-      return NextResponse.json(
-        { error: "No Application is in Draft Stage" },
-        { status: 404, headers: corsHeaders() }
-      );
-    }
 
     return NextResponse.json(
       {
@@ -119,7 +113,7 @@ export async function GET(
       { status: 200, headers: corsHeaders() }
     );
   } catch (error) {
-    console.error("[v1] GET request error:", error);
+    console.error("[v0] Catch-all GET request error:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch collection data",
