@@ -21,28 +21,22 @@ async function fetchWebflowCollection(
     }
   }
 
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    });
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+  });
 
-    if (!response.ok) {
-      throw new Error(
-        `Webflow API error: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Error fetching Webflow collection:", error);
-    throw error;
+  if (!response.ok) {
+    throw new Error(
+      `Webflow API error: ${response.status} ${response.statusText}`
+    );
   }
+
+  return response.json();
 }
 
 function corsHeaders() {
@@ -51,12 +45,12 @@ function corsHeaders() {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
-    "Access-Control-Max-Age": "86400", // Cache preflight for 24 hours
+    "Access-Control-Max-Age": "86400", // 24h
   };
 }
 
 export async function OPTIONS() {
-  console.log("[v0] Catch-all OPTIONS request received");
+  console.log("[v1] OPTIONS preflight handled");
   return new NextResponse(null, {
     status: 200,
     headers: corsHeaders(),
@@ -67,7 +61,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { params: string[] } }
 ) {
-  console.log("[v0] Catch-all GET request received with params:", params);
+  console.log("[v1] GET request received with params:", params);
 
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
@@ -75,26 +69,27 @@ export async function GET(
     const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
 
     if (!apiToken || !siteId || !collectionId) {
-      return NextResponse.json(
-        { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders() }
+      return new NextResponse(
+        JSON.stringify({ error: "Missing required environment variables" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        }
       );
     }
 
     const email = params.params?.[0]
       ? decodeURIComponent(params.params[0])
       : null;
-    console.log("[v0] Extracted email from path:", email);
-
     const { searchParams } = new URL(request.url);
     const applicationStatus = searchParams.get("application-status");
 
     const filters = {
       userName: email,
-      applicationStatus: applicationStatus,
+      applicationStatus: applicationStatus || undefined,
     };
 
-    console.log("[v0] Filtering with:", filters);
+    console.log("[v1] Filtering with:", filters);
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
@@ -103,23 +98,29 @@ export async function GET(
       filters
     );
 
-    return NextResponse.json(
-      {
+    return new NextResponse(
+      JSON.stringify({
         success: true,
         data: collectionData,
-        filters: filters,
+        filters,
         timestamp: new Date().toISOString(),
-      },
-      { status: 200, headers: corsHeaders() }
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      }
     );
   } catch (error) {
-    console.error("[v0] Catch-all GET request error:", error);
-    return NextResponse.json(
-      {
+    console.error("[v1] GET request error:", error);
+    return new NextResponse(
+      JSON.stringify({
         error: "Failed to fetch collection data",
         details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500, headers: corsHeaders() }
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      }
     );
   }
 }
