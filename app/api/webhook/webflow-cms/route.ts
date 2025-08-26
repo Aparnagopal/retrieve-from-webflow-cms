@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-// Webflow CMS API integration
+// ---- Utility: Webflow fetch ----
 async function fetchWebflowCollection(
   collectionId: string,
   apiToken: string,
   siteId: string,
-  filters?: { userName?: string; applicationStatus?: string }
+  filters?: { userName?: string | null; applicationStatus?: string | null }
 ) {
   let url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
 
@@ -22,6 +22,8 @@ async function fetchWebflowCollection(
     }
   }
 
+  console.log("[fetchWebflowCollection] Final URL:", url);
+
   try {
     const response = await fetch(url, {
       method: "GET",
@@ -32,109 +34,59 @@ async function fetchWebflowCollection(
       },
     });
 
+    console.log("[fetchWebflowCollection] Response status:", response.status);
+
     if (!response.ok) {
+      const text = await response.text();
+      console.error("[fetchWebflowCollection] Error body:", text);
       throw new Error(
         `Webflow API error: ${response.status} ${response.statusText}`
       );
     }
 
     const data = await response.json();
+    console.log(
+      "[fetchWebflowCollection] Data received:",
+      JSON.stringify(data, null, 2)
+    );
     return data;
   } catch (error) {
-    console.error("Error fetching Webflow collection:", error);
+    console.error("[fetchWebflowCollection] Exception:", error);
     throw error;
   }
 }
 
-// Handle CORS for cross-origin requests from Webflow
+// ---- Utility: CORS headers ----
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
   };
 }
 
-// Handle OPTIONS request for CORS preflight
+// ---- Handle OPTIONS (CORS preflight) ----
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: corsHeaders(),
-  });
+  console.log("[OPTIONS] Preflight request received");
+  return new NextResponse(null, { status: 200, headers: corsHeaders() });
 }
 
-// Handle POST webhook from Webflow
-export async function POST(request: NextRequest) {
-  try {
-    const apiToken = process.env.WEBFLOW_API_TOKEN;
-    const siteId = process.env.WEBFLOW_SITE_ID;
-    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
-
-    if (!apiToken || !siteId || !collectionId) {
-      return NextResponse.json(
-        { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders() }
-      );
-    }
-
-    // Parse webhook payload
-    const webhookData = await request.json();
-    console.log("Webhook received:", webhookData);
-
-    const filters = {
-      userName: webhookData["user-name"] || webhookData.userName,
-      applicationStatus:
-        webhookData["application-status"] || webhookData.applicationStatus,
-    };
-
-    console.log("Filtering with:", filters);
-
-    const collectionData = await fetchWebflowCollection(
-      collectionId,
-      apiToken,
-      siteId,
-      filters
-    );
-
-    // Process the data (customize this based on your needs)
-    const processedData = {
-      timestamp: new Date().toISOString(),
-      webhook: webhookData,
-      filters: filters,
-      collection: collectionData,
-      itemCount: collectionData.items?.length || 0,
-    };
-
-    console.log("Processed collection data:", processedData);
-
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Webhook processed successfully",
-        data: processedData,
-      },
-      { status: 200, headers: corsHeaders() }
-    );
-  } catch (error) {
-    console.error("Webhook processing error:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to process webhook",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500, headers: corsHeaders() }
-    );
-  }
-}
-
-// Handle GET request for manual data retrieval
+// ---- Handle GET (query param style) ----
 export async function GET(request: NextRequest) {
+  console.log("[GET] Incoming request:", request.url);
+
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
     const siteId = process.env.WEBFLOW_SITE_ID;
     const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
 
     if (!apiToken || !siteId || !collectionId) {
+      console.error("[GET] Missing required environment variables", {
+        apiToken: !!apiToken,
+        siteId: !!siteId,
+        collectionId: !!collectionId,
+      });
       return NextResponse.json(
         { error: "Missing required environment variables" },
         { status: 500, headers: corsHeaders() }
@@ -149,6 +101,8 @@ export async function GET(request: NextRequest) {
         searchParams.get("applicationStatus"),
     };
 
+    console.log("[GET] Filters extracted:", filters);
+
     const collectionData = await fetchWebflowCollection(
       collectionId,
       apiToken,
@@ -156,20 +110,93 @@ export async function GET(request: NextRequest) {
       filters
     );
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: collectionData,
-        filters: filters,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 200, headers: corsHeaders() }
+    const responseBody = {
+      success: true,
+      filters,
+      timestamp: new Date().toISOString(),
+      itemCount: collectionData.items?.length ?? 0,
+      data: collectionData,
+    };
+
+    console.log(
+      "[GET] Success response:",
+      JSON.stringify(responseBody, null, 2)
     );
+
+    return NextResponse.json(responseBody, {
+      status: 200,
+      headers: corsHeaders(),
+    });
   } catch (error) {
-    console.error("GET request error:", error);
+    console.error("[GET] Error:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch collection data",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
+}
+
+// ---- Handle POST (Webhook) ----
+export async function POST(request: NextRequest) {
+  console.log("[POST] Incoming webhook");
+
+  try {
+    const apiToken = process.env.WEBFLOW_API_TOKEN;
+    const siteId = process.env.WEBFLOW_SITE_ID;
+    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
+
+    if (!apiToken || !siteId || !collectionId) {
+      console.error("[POST] Missing required environment variables");
+      return NextResponse.json(
+        { error: "Missing required environment variables" },
+        { status: 500, headers: corsHeaders() }
+      );
+    }
+
+    const webhookData = await request.json();
+    console.log("[POST] Webhook payload:", webhookData);
+
+    const filters = {
+      userName: webhookData["user-name"] || webhookData.userName,
+      applicationStatus:
+        webhookData["application-status"] || webhookData.applicationStatus,
+    };
+
+    console.log("[POST] Filters from webhook:", filters);
+
+    const collectionData = await fetchWebflowCollection(
+      collectionId,
+      apiToken,
+      siteId,
+      filters
+    );
+
+    const responseBody = {
+      success: true,
+      message: "Webhook processed successfully",
+      filters,
+      timestamp: new Date().toISOString(),
+      itemCount: collectionData.items?.length ?? 0,
+      collection: collectionData,
+    };
+
+    console.log(
+      "[POST] Success response:",
+      JSON.stringify(responseBody, null, 2)
+    );
+
+    return NextResponse.json(responseBody, {
+      status: 200,
+      headers: corsHeaders(),
+    });
+  } catch (error) {
+    console.error("[POST] Error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to process webhook",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500, headers: corsHeaders() }

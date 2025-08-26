@@ -37,8 +37,7 @@ async function fetchWebflowCollection(
       );
     }
 
-    const data = await response.json();
-    return data;
+    return await response.json();
   } catch (error) {
     console.error("Error fetching Webflow collection:", error);
     throw error;
@@ -47,19 +46,20 @@ async function fetchWebflowCollection(
 
 function corsHeaders() {
   return {
+    // for testing, allow all; for production replace * with your Webflow domain
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
-    "Access-Control-Allow-Credentials": "false",
+    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400",
   };
 }
 
 export async function OPTIONS() {
-  console.log("[v0] Catch-all OPTIONS preflight request received");
-  return new NextResponse(null, {
-    status: 200,
+  console.log("[v0] OPTIONS preflight request received");
+  return new Response(null, {
+    status: 204,
     headers: corsHeaders(),
   });
 }
@@ -68,7 +68,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { params: string[] } }
 ) {
-  console.log("[v0] Catch-all GET request received with params:", params);
+  console.log("[v0] GET request with params:", params);
   console.log("[v0] Request URL:", request.url);
 
   try {
@@ -90,14 +90,9 @@ export async function GET(
 
     const { searchParams } = new URL(request.url);
     const applicationStatus = searchParams.get("application-status");
-    console.log("[v0] Application status from query:", applicationStatus);
+    console.log("[v0] Application status:", applicationStatus);
 
-    const filters = {
-      userName: email,
-      applicationStatus: applicationStatus,
-    };
-
-    console.log("[v0] Filtering with:", filters);
+    const filters = { userName: email, applicationStatus };
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
@@ -110,13 +105,13 @@ export async function GET(
       {
         success: true,
         data: collectionData,
-        filters: filters,
+        filters,
         timestamp: new Date().toISOString(),
       },
       { status: 200, headers: corsHeaders() }
     );
   } catch (error) {
-    console.error("[v0] Catch-all GET request error:", error);
+    console.error("[v0] GET error:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch collection data",
