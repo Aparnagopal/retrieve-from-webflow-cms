@@ -57,9 +57,15 @@ async function fetchWebflowCollection(
 }
 
 // ---- Utility: CORS headers ----
-function corsHeaders() {
+function corsHeaders(origin?: string) {
+  const allowedOrigins = [
+    "https://pytf-new-merged-and-improved-site.webflow.io", // staging
+    "https://your-custom-domain.com", // TODO: replace with real domain
+  ];
+
   return {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin":
+      origin && allowedOrigins.includes(origin) ? origin : "null",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
@@ -67,14 +73,20 @@ function corsHeaders() {
 }
 
 // ---- Handle OPTIONS (CORS preflight) ----
-export async function OPTIONS() {
-  console.log("[OPTIONS] Preflight request received");
-  return new NextResponse(null, { status: 200, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get("origin") || "";
+  console.log("[OPTIONS] Preflight from:", origin);
+
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders(origin),
+  });
 }
 
 // ---- Handle GET (query param style) ----
 export async function GET(request: NextRequest) {
-  console.log("[GET] Incoming request:", request.url);
+  const origin = request.headers.get("origin") || "";
+  console.log("[GET] Incoming request from:", origin);
 
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
@@ -89,7 +101,7 @@ export async function GET(request: NextRequest) {
       });
       return NextResponse.json(
         { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders() }
+        { status: 500, headers: corsHeaders(origin) }
       );
     }
 
@@ -125,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(responseBody, {
       status: 200,
-      headers: corsHeaders(),
+      headers: corsHeaders(origin),
     });
   } catch (error) {
     console.error("[GET] Error:", error);
@@ -134,14 +146,15 @@ export async function GET(request: NextRequest) {
         error: "Failed to fetch collection data",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500, headers: corsHeaders() }
+      { status: 500, headers: corsHeaders(origin) }
     );
   }
 }
 
 // ---- Handle POST (Webhook) ----
 export async function POST(request: NextRequest) {
-  console.log("[POST] Incoming webhook");
+  const origin = request.headers.get("origin") || "";
+  console.log("[POST] Incoming webhook from:", origin);
 
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
@@ -152,7 +165,7 @@ export async function POST(request: NextRequest) {
       console.error("[POST] Missing required environment variables");
       return NextResponse.json(
         { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders() }
+        { status: 500, headers: corsHeaders(origin) }
       );
     }
 
@@ -190,7 +203,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(responseBody, {
       status: 200,
-      headers: corsHeaders(),
+      headers: corsHeaders(origin),
     });
   } catch (error) {
     console.error("[POST] Error:", error);
@@ -199,7 +212,7 @@ export async function POST(request: NextRequest) {
         error: "Failed to process webhook",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500, headers: corsHeaders() }
+      { status: 500, headers: corsHeaders(origin) }
     );
   }
 }
