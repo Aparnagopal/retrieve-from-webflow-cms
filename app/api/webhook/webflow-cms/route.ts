@@ -2,9 +2,18 @@
 import { NextRequest } from "next/server";
 
 const allowedOrigins = [
-  "https://pytf-new-merged-and-improved-site.webflow.io",
-  "https://your-custom-domain.com", // replace with your custom domain
+  "https://your-custom-domain.com", // replace with your production domain
 ];
+
+function isAllowedOrigin(origin: string | null) {
+  if (!origin) return false;
+  if (allowedOrigins.includes(origin)) return true;
+
+  // allow any webflow.io subdomain
+  if (origin.endsWith(".webflow.io")) return true;
+
+  return false;
+}
 
 function getCorsHeaders(origin: string | null) {
   const headers: Record<string, string> = {
@@ -12,7 +21,7 @@ function getCorsHeaders(origin: string | null) {
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 
-  if (origin && allowedOrigins.includes(origin)) {
+  if (isAllowedOrigin(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
 
