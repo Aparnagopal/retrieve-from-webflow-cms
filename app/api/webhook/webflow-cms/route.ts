@@ -2,52 +2,54 @@ import { NextRequest, NextResponse } from "next/server";
 
 const allowedOrigins = [
   "https://pytf-new-merged-and-improved-site.webflow.io", // staging
-  "https://your-custom-domain.com", // replace with your live domain
+  "https://your-custom-domain.com", // replace with prod domain
 ];
 
-// Utility to add CORS headers
-function cors(request: NextRequest, response: NextResponse) {
+// Helper to build a response with CORS
+function withCors(request: NextRequest, data: any, status = 200) {
   const origin = request.headers.get("origin") || "";
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
+    "Access-Control-Allow-Credentials": "true",
+  };
+
   if (allowedOrigins.includes(origin)) {
-    response.headers.set("Access-Control-Allow-Origin", origin);
+    headers["Access-Control-Allow-Origin"] = origin;
   }
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.headers.set(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent"
-  );
-  response.headers.set("Access-Control-Allow-Credentials", "true");
-  return response;
+
+  return new NextResponse(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+  });
 }
 
-// Handle OPTIONS (preflight)
+// OPTIONS (preflight)
 export async function OPTIONS(request: NextRequest) {
-  return cors(request, NextResponse.json({}, { status: 200 }));
+  return withCors(request, { ok: true });
 }
 
-// Handle GET
+// GET
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userName = searchParams.get("user-name");
   const applicationStatus = searchParams.get("application-status");
 
-  const data = {
+  return withCors(request, {
     success: true,
-    from: "webhook/webflow-cms",
     received: { userName, applicationStatus },
-  };
-
-  return cors(request, NextResponse.json(data, { status: 200 }));
+  });
 }
 
-// Handle POST
+// POST
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const data = {
+  return withCors(request, {
     success: true,
-    from: "webhook/webflow-cms",
     received: body,
-  };
-
-  return cors(request, NextResponse.json(data, { status: 200 }));
+  });
 }
