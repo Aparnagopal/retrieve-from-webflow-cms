@@ -1,71 +1,55 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/webhook/webflow-cms/route.ts
+import { NextRequest } from "next/server";
 
 const allowedOrigins = [
-  "https://pytf-new-merged-and-improved-site.webflow.io", // Webflow staging
-  "https://your-custom-domain.com", // replace with real custom domain
+  "https://pytf-new-merged-and-improved-site.webflow.io",
+  "https://your-custom-domain.com", // replace with your real domain
 ];
 
-function corsResponse(request: NextRequest, body: any, status = 200) {
-  const origin = request.headers.get("origin") || "";
+function corsResponse(body: any, origin: string | null, status = 200) {
   const headers: Record<string, string> = {
+    "Content-Type": "application/json",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
-    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 
-  // Allow origin only if it's in whitelist
-  if (allowedOrigins.includes(origin)) {
+  // allow only known origins
+  if (origin && allowedOrigins.includes(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
 
-  return new NextResponse(JSON.stringify(body), {
+  return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
+    headers,
   });
 }
 
-export async function OPTIONS(request: NextRequest) {
-  console.log("OPTIONS:", request.url);
-  return corsResponse(request, { ok: true });
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get("origin");
+  return corsResponse({}, origin, 200);
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    console.log("GET:", request.url);
+    const origin = req.headers.get("origin");
 
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const userName = searchParams.get("user-name");
-    const applicationStatus = searchParams.get("application-status");
+    const status = searchParams.get("application-status");
 
-    console.log("Query params:", { userName, applicationStatus });
+    console.log("🔹 GET /webhook/webflow-cms", { userName, status, origin });
 
-    return corsResponse(request, {
-      success: true,
-      received: { userName, applicationStatus },
-    });
+    if (!userName || !status) {
+      return corsResponse({ error: "Missing parameters" }, origin, 400);
+    }
+
+    return corsResponse(
+      { message: "Data received", userName, status },
+      origin,
+      200
+    );
   } catch (err: any) {
-    console.error("GET error:", err);
-    return corsResponse(request, { error: "Server error" }, 500);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    console.log("POST:", request.url);
-
-    const body = await request.json().catch(() => null);
-    console.log("POST body:", body);
-
-    return corsResponse(request, {
-      success: true,
-      received: body,
-    });
-  } catch (err: any) {
-    console.error("POST error:", err);
-    return corsResponse(request, { error: "Server error" }, 500);
+    console.error("❌ Error in route handler:", err);
+    return corsResponse({ error: "Internal Server Error" }, null, 500);
   }
 }
