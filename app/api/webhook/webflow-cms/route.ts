@@ -3,53 +3,57 @@ import { NextRequest } from "next/server";
 
 const allowedOrigins = [
   "https://pytf-new-merged-and-improved-site.webflow.io",
-  "https://your-custom-domain.com", // replace with your real domain
+  "https://your-custom-domain.com", // replace with your custom domain
 ];
 
-function corsResponse(body: any, origin: string | null, status = 200) {
+function getCorsHeaders(origin: string | null) {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 
-  // allow only known origins
   if (origin && allowedOrigins.includes(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
 
-  return new Response(JSON.stringify(body), {
-    status,
-    headers,
-  });
+  return headers;
 }
 
 export async function OPTIONS(req: NextRequest) {
   const origin = req.headers.get("origin");
-  return corsResponse({}, origin, 200);
+  return new Response(null, {
+    status: 200,
+    headers: getCorsHeaders(origin),
+  });
 }
 
 export async function GET(req: NextRequest) {
-  try {
-    const origin = req.headers.get("origin");
+  const origin = req.headers.get("origin");
+  const { searchParams } = new URL(req.url);
 
-    const { searchParams } = new URL(req.url);
-    const userName = searchParams.get("user-name");
-    const status = searchParams.get("application-status");
+  const userName = searchParams.get("user-name");
+  const status = searchParams.get("application-status");
 
-    console.log("🔹 GET /webhook/webflow-cms", { userName, status, origin });
+  console.log("🔹 GET /webhook/webflow-cms", { userName, status, origin });
 
-    if (!userName || !status) {
-      return corsResponse({ error: "Missing parameters" }, origin, 400);
-    }
-
-    return corsResponse(
-      { message: "Data received", userName, status },
-      origin,
-      200
-    );
-  } catch (err: any) {
-    console.error("❌ Error in route handler:", err);
-    return corsResponse({ error: "Internal Server Error" }, null, 500);
+  if (!userName || !status) {
+    return new Response(JSON.stringify({ error: "Missing parameters" }), {
+      status: 400,
+      headers: {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(origin),
+      },
+    });
   }
+
+  return new Response(
+    JSON.stringify({ message: "Data received", userName, status }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(origin),
+      },
+    }
+  );
 }
