@@ -5,7 +5,6 @@ const allowedOrigins = [
   "https://your-custom-domain.com", // replace with prod domain
 ];
 
-// Helper to build a response with CORS
 function withCors(request: NextRequest, data: any, status = 200) {
   const origin = request.headers.get("origin") || "";
   const headers: Record<string, string> = {
@@ -28,16 +27,19 @@ function withCors(request: NextRequest, data: any, status = 200) {
   });
 }
 
-// OPTIONS (preflight)
 export async function OPTIONS(request: NextRequest) {
+  console.log("OPTIONS request received", request.url);
   return withCors(request, { ok: true });
 }
 
-// GET
 export async function GET(request: NextRequest) {
+  console.log("GET request received:", request.url);
+
   const { searchParams } = new URL(request.url);
   const userName = searchParams.get("user-name");
   const applicationStatus = searchParams.get("application-status");
+
+  console.log("Query params:", { userName, applicationStatus });
 
   return withCors(request, {
     success: true,
@@ -45,9 +47,12 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// POST
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  console.log("POST request received:", request.url);
+
+  const body = await request.json().catch(() => null);
+  console.log("POST body:", body);
+
   return withCors(request, {
     success: true,
     received: body,
