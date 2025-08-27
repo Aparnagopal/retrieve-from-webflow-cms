@@ -56,20 +56,29 @@ async function fetchWebflowCollection(
   }
 }
 
-// ---- Utility: CORS headers ----
-function corsHeaders(origin?: string) {
+// ---- Utility: CORS wrapper ----
+function withCorsHeaders(
+  response: NextResponse,
+  origin?: string
+): NextResponse {
   const allowedOrigins = [
     "https://pytf-new-merged-and-improved-site.webflow.io", // staging
-    "https://your-custom-domain.com", // TODO: replace with real domain
+    "https://your-custom-domain.com", // TODO: replace with your custom domain
   ];
 
-  return {
-    "Access-Control-Allow-Origin":
-      origin && allowedOrigins.includes(origin) ? origin : "null",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent",
-  };
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+  } else {
+    response.headers.set("Access-Control-Allow-Origin", "null");
+  }
+
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent"
+  );
+
+  return response;
 }
 
 // ---- Handle OPTIONS (CORS preflight) ----
@@ -77,16 +86,14 @@ export async function OPTIONS(request: NextRequest) {
   const origin = request.headers.get("origin") || "";
   console.log("[OPTIONS] Preflight from:", origin);
 
-  return new NextResponse(null, {
-    status: 200,
-    headers: corsHeaders(origin),
-  });
+  const response = new NextResponse(null, { status: 200 });
+  return withCorsHeaders(response, origin);
 }
 
 // ---- Handle GET (query param style) ----
 export async function GET(request: NextRequest) {
   const origin = request.headers.get("origin") || "";
-  console.log("[GET] Incoming request from:", origin);
+  console.log("[GET] Incoming request from:", origin, request.url);
 
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
@@ -99,10 +106,12 @@ export async function GET(request: NextRequest) {
         siteId: !!siteId,
         collectionId: !!collectionId,
       });
-      return NextResponse.json(
+
+      const response = NextResponse.json(
         { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders(origin) }
+        { status: 500 }
       );
+      return withCorsHeaders(response, origin);
     }
 
     const { searchParams } = new URL(request.url);
@@ -135,19 +144,19 @@ export async function GET(request: NextRequest) {
       JSON.stringify(responseBody, null, 2)
     );
 
-    return NextResponse.json(responseBody, {
-      status: 200,
-      headers: corsHeaders(origin),
-    });
+    const response = NextResponse.json(responseBody, { status: 200 });
+    return withCorsHeaders(response, origin);
   } catch (error) {
     console.error("[GET] Error:", error);
-    return NextResponse.json(
+
+    const response = NextResponse.json(
       {
         error: "Failed to fetch collection data",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500, headers: corsHeaders(origin) }
+      { status: 500 }
     );
+    return withCorsHeaders(response, origin);
   }
 }
 
@@ -163,10 +172,12 @@ export async function POST(request: NextRequest) {
 
     if (!apiToken || !siteId || !collectionId) {
       console.error("[POST] Missing required environment variables");
-      return NextResponse.json(
+
+      const response = NextResponse.json(
         { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders(origin) }
+        { status: 500 }
       );
+      return withCorsHeaders(response, origin);
     }
 
     const webhookData = await request.json();
@@ -201,18 +212,18 @@ export async function POST(request: NextRequest) {
       JSON.stringify(responseBody, null, 2)
     );
 
-    return NextResponse.json(responseBody, {
-      status: 200,
-      headers: corsHeaders(origin),
-    });
+    const response = NextResponse.json(responseBody, { status: 200 });
+    return withCorsHeaders(response, origin);
   } catch (error) {
     console.error("[POST] Error:", error);
-    return NextResponse.json(
+
+    const response = NextResponse.json(
       {
         error: "Failed to process webhook",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500, headers: corsHeaders(origin) }
+      { status: 500 }
     );
+    return withCorsHeaders(response, origin);
   }
 }
