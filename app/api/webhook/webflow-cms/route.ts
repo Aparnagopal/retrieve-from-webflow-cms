@@ -1,63 +1,123 @@
-// app/api/webhook/webflow-cms/route.ts
+import { type NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+async function fetchWebflowCollection(
+  collectionId: string,
+  apiToken: string,
+  siteId: string,
+  filters?: { userName?: string; applicationStatus?: string }
+) {
+  let url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
 
-import { NextRequest } from "next/server";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // debug: wide open
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-// GET handler
-export async function GET(req: NextRequest) {
-  console.log("=== GET hit ===", req.url);
-
-  return new Response(
-    JSON.stringify({
-      message: "CORS debug GET (forced nodejs)",
-      url: req.url,
-    }),
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
+  if (filters) {
+    const params = new URLSearchParams();
+    if (filters.userName) {
+      params.append("filter[user-name]", filters.userName);
     }
-  );
+    if (filters.applicationStatus) {
+      params.append("filter[application-status]", filters.applicationStatus);
+    }
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Webflow API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching Webflow collection:", error);
+    throw error;
+  }
 }
 
-// POST handler (dummy)
-export async function POST(req: NextRequest) {
-  console.log("=== POST hit ===", req.url);
-
-  const body = await req.json().catch(() => ({}));
-
-  return new Response(
-    JSON.stringify({
-      message: "CORS debug POST (forced nodejs)",
-      url: req.url,
-      body,
-    }),
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
-    }
-  );
+function corsHeaders() {
+  return {
+    // for testing, allow all; for production replace * with your Webflow domain
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
+  };
 }
 
-// OPTIONS handler
-export async function OPTIONS(req: NextRequest) {
-  console.log("=== OPTIONS hit ===", req.url);
-
+export async function OPTIONS() {
+  console.log("[v0] OPTIONS preflight request received");
   return new Response(null, {
     status: 204,
-    headers: corsHeaders,
+    headers: corsHeaders(),
   });
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { params: string[] } }
+) {
+  console.log("[v0] GET request with params:", params);
+  console.log("[v0] Request URL:", request.url);
+
+  try {
+    const apiToken = process.env.WEBFLOW_API_TOKEN;
+    const siteId = process.env.WEBFLOW_SITE_ID;
+    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
+
+    if (!apiToken || !siteId || !collectionId) {
+      return NextResponse.json(
+        { error: "Missing required environment variables" },
+        { status: 500, headers: corsHeaders() }
+      );
+    }
+
+    const email = params.params?.[0]
+      ? decodeURIComponent(params.params[0])
+      : null;
+    console.log("[v0] Extracted email from path:", email);
+
+    const { searchParams } = new URL(request.url);
+    const applicationStatus = searchParams.get("application-status");
+    console.log("[v0] Application status:", applicationStatus);
+
+    const filters = { userName: email, applicationStatus };
+
+    const collectionData = await fetchWebflowCollection(
+      collectionId,
+      apiToken,
+      siteId,
+      filters
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: collectionData,
+        filters,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200, headers: corsHeaders() }
+    );
+  } catch (error) {
+    console.error("[v0] GET error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch collection data",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
 }
