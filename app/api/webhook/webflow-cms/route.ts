@@ -1,28 +1,16 @@
-// app/api/webhook/webflow-cms/route.ts
 import { NextRequest } from "next/server";
 
 function getCorsHeaders(origin: string | null) {
-  const headers: Record<string, string> = {
+  return {
+    "Access-Control-Allow-Origin": origin || "*", // reflect back origin
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
-
-  if (origin) {
-    // Allow your custom domain + any *.webflow.io staging site
-    if (
-      origin === "https://your-custom-domain.com" || // 🔹 replace with your prod domain
-      origin.endsWith(".webflow.io")
-    ) {
-      headers["Access-Control-Allow-Origin"] = origin;
-    }
-  }
-
-  return headers;
 }
 
 export async function OPTIONS(req: NextRequest) {
   const origin = req.headers.get("origin");
-  console.log("🔹 OPTIONS origin:", origin);
+  console.log(">>> OPTIONS Origin Header:", origin);
 
   return new Response(null, {
     status: 200,
@@ -32,30 +20,28 @@ export async function OPTIONS(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const origin = req.headers.get("origin");
-  console.log("🔹 GET origin:", origin);
+  console.log(">>> GET Origin Header:", origin);
 
   const { searchParams } = new URL(req.url);
   const userName = searchParams.get("user-name");
   const status = searchParams.get("application-status");
 
   if (!userName || !status) {
-    return new Response(JSON.stringify({ error: "Missing parameters" }), {
+    return new Response(JSON.stringify({ error: "Missing params" }), {
       status: 400,
       headers: {
-        "Content-Type": "application/json",
         ...getCorsHeaders(origin),
+        "Content-Type": "application/json",
       },
     });
   }
 
-  return new Response(
-    JSON.stringify({ message: "Data received", userName, status }),
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...getCorsHeaders(origin),
-      },
-    }
-  );
+  // For now just echo back the params so we know CORS works
+  return new Response(JSON.stringify({ userName, status }), {
+    status: 200,
+    headers: {
+      ...getCorsHeaders(origin),
+      "Content-Type": "application/json",
+    },
+  });
 }
