@@ -1,7 +1,10 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextRequest } from "next/server";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // allow all (debug)
+  "Access-Control-Allow-Origin": "*", // debug - wide open
   "Access-Control-Allow-Methods": "GET,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
@@ -10,7 +13,7 @@ export async function GET(req: NextRequest) {
   console.log("=== GET hit ===", req.url);
 
   return new Response(
-    JSON.stringify({ message: "CORS debug GET (raw Response)", url: req.url }),
+    JSON.stringify({ message: "CORS debug GET (forced nodejs)", url: req.url }),
     {
       status: 200,
       headers: {
