@@ -1,28 +1,12 @@
-// app/api/webhook/webflow-cms/route.ts
-import { NextResponse } from "next/server";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET() {
-  return NextResponse.json(
-    { message: "Hello from webflow-cms debug" },
+  return new Response(
+    JSON.stringify({ ok: true, message: "Hello from test route" }),
     {
       status: 200,
       headers: {
+        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
     }
   );
-}
-
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    },
-  });
 }
