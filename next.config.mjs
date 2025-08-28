@@ -3,10 +3,8 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
-  experimental: {
-    appDir: true, // ✅ force App Router so /app/api routes work
-  },
-  output: undefined, // ✅ make sure you're NOT doing static export
+  // ✅ Remove experimental.appDir — App Router is always enabled in Next.js 13.4+
+  output: undefined, // keep this, ensures server functions are deployed
 };
 
 export default nextConfig;
