@@ -1,34 +1,28 @@
+// app/api/webhook/webflow-cms/route.ts
+import { NextResponse } from "next/server";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { NextRequest } from "next/server";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // debug - wide open
-  "Access-Control-Allow-Methods": "GET,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-export async function GET(req: NextRequest) {
-  console.log("=== GET hit ===", req.url);
-
-  return new Response(
-    JSON.stringify({ message: "CORS debug GET (forced nodejs)", url: req.url }),
+export async function GET() {
+  return NextResponse.json(
+    { message: "Hello from webflow-cms debug" },
     {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
+        "Access-Control-Allow-Origin": "*",
       },
     }
   );
 }
 
-export async function OPTIONS(req: NextRequest) {
-  console.log("=== OPTIONS hit ===", req.url);
-
+export async function OPTIONS() {
   return new Response(null, {
     status: 204,
-    headers: corsHeaders,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
   });
 }
