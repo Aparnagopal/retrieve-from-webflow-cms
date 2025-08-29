@@ -1,5 +1,49 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+async function fetchWebflowCollection(
+  collectionId: string,
+  apiToken: string,
+  siteId: string,
+  filters?: { userName?: string; applicationStatus?: string }
+) {
+  let url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
+
+  if (filters) {
+    const params = new URLSearchParams();
+    if (filters.userName) {
+      params.append("filter[user-name]", filters.userName);
+    }
+    if (filters.applicationStatus) {
+      params.append("filter[application-status]", filters.applicationStatus);
+    }
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Webflow API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching Webflow collection:", error);
+    throw error;
+  }
+}
+
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin":
@@ -12,7 +56,6 @@ function corsHeaders() {
   };
 }
 
-// Handle preflight
 export async function OPTIONS() {
   return new Response(null, {
     status: 204,
@@ -39,7 +82,6 @@ export async function GET(request: NextRequest) {
 
     const filters = { userName: email || undefined, applicationStatus };
 
-    // call Webflow API
     const collectionData = await fetchWebflowCollection(
       collectionId,
       apiToken,
