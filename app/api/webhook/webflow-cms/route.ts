@@ -1,123 +1,80 @@
-import { type NextRequest, NextResponse } from "next/server";
+export default async function handler(req, res) {
+  if (req.method === "GET") {
+    try {
+      const {
+        ["user-name"]: userName,
+        ["application-status"]: applicationStatus,
+      } = req.query;
 
-async function fetchWebflowCollection(
-  collectionId: string,
-  apiToken: string,
-  siteId: string,
-  filters?: { userName?: string; applicationStatus?: string }
-) {
-  let url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
+      if (!userName || !applicationStatus) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Missing required query parameters: user-name, application-status",
+        });
+      }
 
-  if (filters) {
-    const params = new URLSearchParams();
-    if (filters.userName) {
-      params.append("filter[user-name]", filters.userName);
-    }
-    if (filters.applicationStatus) {
-      params.append("filter[application-status]", filters.applicationStatus);
-    }
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-  }
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Webflow API error: ${response.status} ${response.statusText}`
+      // Fetch collection from Webflow
+      const response = await fetch(
+        `https://api.webflow.com/v2/collections/${process.env.WEBFLOW_COLLECTION_ID}/items`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${process.env.WEBFLOW_API_TOKEN}`,
+            "accept-version": "1.0.0",
+          },
+        }
       );
-    }
 
-    return await response.json();
-  } catch (error) {
-    console.error("Error fetching Webflow collection:", error);
-    throw error;
-  }
-}
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Webflow API error: ${errorText}`);
+      }
 
-function corsHeaders() {
-  return {
-    // for testing, allow all; for production replace * with your Webflow domain
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Max-Age": "86400",
-  };
-}
+      const result = await response.json();
 
-export async function OPTIONS() {
-  console.log("[v0] OPTIONS preflight request received");
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders(),
-  });
-}
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { params: string[] } }
-) {
-  console.log("[v0] GET request with params:", params);
-  console.log("[v0] Request URL:", request.url);
-
-  try {
-    const apiToken = process.env.WEBFLOW_API_TOKEN;
-    const siteId = process.env.WEBFLOW_SITE_ID;
-    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
-
-    if (!apiToken || !siteId || !collectionId) {
-      return NextResponse.json(
-        { error: "Missing required environment variables" },
-        { status: 500, headers: corsHeaders() }
+      // Filter items by user-name and application-status
+      const matchingItem = result.items.find(
+        (item) =>
+          item.fieldData?.["user-name"] === userName &&
+          item.fieldData?.["application-status"] === applicationStatus
       );
-    }
 
-    const email = params.params?.[0]
-      ? decodeURIComponent(params.params[0])
-      : null;
-    console.log("[v0] Extracted email from path:", email);
+      if (!matchingItem) {
+        return res.status(404).json({
+          success: false,
+          message: "No matching draft found",
+        });
+      }
 
-    const { searchParams } = new URL(request.url);
-    const applicationStatus = searchParams.get("application-status");
-    console.log("[v0] Application status:", applicationStatus);
-
-    const filters = { userName: email, applicationStatus };
-
-    const collectionData = await fetchWebflowCollection(
-      collectionId,
-      apiToken,
-      siteId,
-      filters
-    );
-
-    return NextResponse.json(
-      {
+      // ✅ Only return fieldData
+      return res.status(200).json({
         success: true,
-        data: collectionData,
-        filters,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 200, headers: corsHeaders() }
+        data: matchingItem.fieldData,
+      });
+    } catch (error) {
+      console.error("API error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error.message,
+      });
+    }
+  } else if (req.method === "POST") {
+    return res.status(200).json({
+      message: "POST received (debug)",
+      body: req.body,
+    });
+  } else if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization"
     );
-  } catch (error) {
-    console.error("[v0] GET error:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to fetch collection data",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500, headers: corsHeaders() }
-    );
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    return res.status(200).end();
+  } else {
+    res.setHeader("Allow", ["GET", "POST", "OPTIONS"]);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
