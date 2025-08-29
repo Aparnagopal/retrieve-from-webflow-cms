@@ -1,80 +1,64 @@
-export default async function handler(req, res) {
-  if (req.method === "GET") {
-    try {
-      const {
-        ["user-name"]: userName,
-        ["application-status"]: applicationStatus,
-      } = req.query;
+import { type NextRequest, NextResponse } from "next/server";
 
-      if (!userName || !applicationStatus) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Missing required query parameters: user-name, application-status",
-        });
-      }
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin":
+      "https://pytf-new-merged-and-improved-site.webflow.io", // 👈 safer than *
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
+  };
+}
 
-      // Fetch collection from Webflow
-      const response = await fetch(
-        `https://api.webflow.com/v2/collections/${process.env.WEBFLOW_COLLECTION_ID}/items`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${process.env.WEBFLOW_API_TOKEN}`,
-            "accept-version": "1.0.0",
-          },
-        }
+// Handle preflight
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders(),
+  });
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const apiToken = process.env.WEBFLOW_API_TOKEN;
+    const siteId = process.env.WEBFLOW_SITE_ID;
+    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
+
+    if (!apiToken || !siteId || !collectionId) {
+      return NextResponse.json(
+        { error: "Missing required environment variables" },
+        { status: 500, headers: corsHeaders() }
       );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Webflow API error: ${errorText}`);
-      }
-
-      const result = await response.json();
-
-      // Filter items by user-name and application-status
-      const matchingItem = result.items.find(
-        (item) =>
-          item.fieldData?.["user-name"] === userName &&
-          item.fieldData?.["application-status"] === applicationStatus
-      );
-
-      if (!matchingItem) {
-        return res.status(404).json({
-          success: false,
-          message: "No matching draft found",
-        });
-      }
-
-      // ✅ Only return fieldData
-      return res.status(200).json({
-        success: true,
-        data: matchingItem.fieldData,
-      });
-    } catch (error) {
-      console.error("API error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error.message,
-      });
     }
-  } else if (req.method === "POST") {
-    return res.status(200).json({
-      message: "POST received (debug)",
-      body: req.body,
-    });
-  } else if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization"
+
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get("user-name");
+    const applicationStatus = searchParams.get("application-status");
+
+    const filters = { userName: email || undefined, applicationStatus };
+
+    // call Webflow API
+    const collectionData = await fetchWebflowCollection(
+      collectionId,
+      apiToken,
+      siteId,
+      filters
     );
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    return res.status(200).end();
-  } else {
-    res.setHeader("Allow", ["GET", "POST", "OPTIONS"]);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    return NextResponse.json(
+      { success: true, data: collectionData.items ?? [] },
+      { status: 200, headers: corsHeaders() }
+    );
+  } catch (error) {
+    console.error("GET error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch collection data",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500, headers: corsHeaders() }
+    );
   }
 }
