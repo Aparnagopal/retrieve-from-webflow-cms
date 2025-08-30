@@ -88,6 +88,10 @@ export async function GET(request: NextRequest) {
       siteId,
       filters
     );
+    console.log(
+      "Collection Data Raw:",
+      JSON.stringify(collectionData, null, 2)
+    );
 
     return NextResponse.json(
       { success: true, data: collectionData.items ?? [] },
