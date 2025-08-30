@@ -32,7 +32,7 @@ async function fetchWebflowCollection(
 
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*", // TODO: replace * with your Webflow site domain for production
+    "Access-Control-Allow-Origin": "*", // replace * with your Webflow domain for production
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
@@ -42,7 +42,7 @@ function corsHeaders() {
 }
 
 export async function OPTIONS() {
-  console.log("[v1] OPTIONS preflight request received");
+  console.log("[v2] OPTIONS preflight request received");
   return new Response(null, {
     status: 204,
     headers: corsHeaders(),
@@ -50,7 +50,7 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  console.log("[v1] GET request received:", request.url);
+  console.log("[v2] GET request received:", request.url);
 
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     const userName = searchParams.get("user-name");
     const applicationStatus = searchParams.get("application-status");
 
-    console.log("[v1] Filters:", { userName, applicationStatus });
+    console.log("[v2] Filters:", { userName, applicationStatus });
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
@@ -77,20 +77,21 @@ export async function GET(request: NextRequest) {
     );
 
     const items = collectionData?.items || [];
-    console.log("[v1] Total items fetched:", items.length);
+    console.log("[v2] Total items fetched:", items.length);
 
     if (items.length > 0) {
-      console.log("[v1] First item sample:", JSON.stringify(items[0], null, 2));
+      console.log("[v2] First item sample:", JSON.stringify(items[0], null, 2));
     }
 
-    // Filter items using actual slugs
+    // ✅ Corrected filter: check inside fieldData
     const filtered = items.filter(
       (item: any) =>
-        item["user-name"] === userName &&
-        item["application-status"] === applicationStatus
+        item.fieldData?.name === userName &&
+        item.fieldData?.["application-status"]?.toLowerCase() ===
+          applicationStatus?.toLowerCase()
     );
 
-    console.log("[v1] Returning items:", filtered.length);
+    console.log("[v2] Returning items:", filtered.length);
 
     return NextResponse.json(
       {
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
       { status: 200, headers: corsHeaders() }
     );
   } catch (error) {
-    console.error("[v1] GET error:", error);
+    console.error("[v2] GET error:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch collection data",
