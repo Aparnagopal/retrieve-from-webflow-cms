@@ -1,77 +1,114 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-const WEBFLOW_API_URL = "https://api.webflow.com/v2";
-const COLLECTION_ID = "686f7d0f338fa886ae9a636a";
-const API_TOKEN = process.env.WEBFLOW_API_TOKEN;
+async function fetchWebflowCollection(
+  collectionId: string,
+  apiToken: string,
+  siteId: string
+) {
+  let url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Webflow API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching Webflow collection:", error);
+    throw error;
+  }
+}
 
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*", // ⚠️ for production: replace * with your Webflow domain
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Origin": "*", // TODO: replace * with your Webflow site domain for production
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
 export async function OPTIONS() {
+  console.log("[v1] OPTIONS preflight request received");
   return new Response(null, {
     status: 204,
     headers: corsHeaders(),
   });
 }
 
-export async function GET(req: Request) {
+export async function GET(request: NextRequest) {
+  console.log("[v1] GET request received:", request.url);
+
   try {
-    // Parse query params from URL
-    const { searchParams } = new URL(req.url);
-    const userName = searchParams.get("user-name");
-    const applicationStatus = searchParams.get("application-status");
+    const apiToken = process.env.WEBFLOW_API_TOKEN;
+    const siteId = process.env.WEBFLOW_SITE_ID;
+    const collectionId = process.env.WEBFLOW_GENRLAPPL_COLLECTION_ID;
 
-    console.log("[v1] GET request with params:", {
-      userName,
-      applicationStatus,
-    });
-
-    // Fetch all items in the collection
-    const res = await fetch(
-      `${WEBFLOW_API_URL}/collections/${COLLECTION_ID}/items`,
-      {
-        headers: {
-          Authorization: `Bearer ${API_TOKEN}`,
-          "accept-version": "1.0.0",
-        },
-        cache: "no-store",
-      }
-    );
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("[v1] Webflow API error:", errorText);
+    if (!apiToken || !siteId || !collectionId) {
       return NextResponse.json(
-        { error: "Failed to fetch items" },
+        { error: "Missing required environment variables" },
         { status: 500, headers: corsHeaders() }
       );
     }
 
-    const data = await res.json();
-    const items = data.items || [];
+    const { searchParams } = new URL(request.url);
+    const userName = searchParams.get("user-name");
+    const applicationStatus = searchParams.get("application-status");
 
-    // Filter items
+    console.log("[v1] Filters:", { userName, applicationStatus });
+
+    const collectionData = await fetchWebflowCollection(
+      collectionId,
+      apiToken,
+      siteId
+    );
+
+    const items = collectionData?.items || [];
+    console.log("[v1] Total items fetched:", items.length);
+
+    if (items.length > 0) {
+      console.log("[v1] First item sample:", JSON.stringify(items[0], null, 2));
+    }
+
+    // Filter items using actual slugs
     const filtered = items.filter(
       (item: any) =>
-        item["name"] === userName && // field slug is `name` (User Name)
+        item["user-name"] === userName &&
         item["application-status"] === applicationStatus
     );
 
     console.log("[v1] Returning items:", filtered.length);
 
     return NextResponse.json(
-      { items: filtered },
+      {
+        success: true,
+        count: filtered.length,
+        data: filtered,
+        filters: { userName, applicationStatus },
+        timestamp: new Date().toISOString(),
+      },
       { status: 200, headers: corsHeaders() }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("[v1] GET error:", error);
     return NextResponse.json(
-      { error: error.message },
+      {
+        error: "Failed to fetch collection data",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500, headers: corsHeaders() }
     );
   }
