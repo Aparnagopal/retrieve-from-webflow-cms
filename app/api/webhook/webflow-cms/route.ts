@@ -11,15 +11,17 @@ async function fetchWebflowCollection(
   if (filters) {
     const params = new URLSearchParams();
     if (filters.userName) {
-      params.append("filter[user-name]", filters.userName);
+      params.append("filter[user-name]", filters.userName); // may need to adjust slug
     }
     if (filters.applicationStatus) {
-      params.append("filter[application-status]", filters.applicationStatus);
+      params.append("filter[application-status]", filters.applicationStatus); // may need to adjust slug
     }
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
   }
+
+  console.log("[v1] Fetching Webflow API with URL:", url);
 
   try {
     const response = await fetch(url, {
@@ -44,10 +46,36 @@ async function fetchWebflowCollection(
   }
 }
 
+async function fetchCollectionSchema(collectionId: string, apiToken: string) {
+  const url = `https://api.webflow.com/v2/collections/${collectionId}`;
+  console.log("[v1] Fetching collection schema with URL:", url);
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Webflow schema error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching collection schema:", error);
+    throw error;
+  }
+}
+
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin":
-      "https://pytf-new-merged-and-improved-site.webflow.io", // 👈 safer than *
+    "Access-Control-Allow-Origin": "*", // TODO: restrict in prod
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control",
@@ -57,13 +85,20 @@ function corsHeaders() {
 }
 
 export async function OPTIONS() {
+  console.log("[v1] OPTIONS preflight request received");
   return new Response(null, {
     status: 204,
     headers: corsHeaders(),
   });
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { params: string[] } }
+) {
+  console.log("[v1] GET request with params:", params);
+  console.log("[v1] Request URL:", request.url);
+
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
     const siteId = process.env.WEBFLOW_SITE_ID;
@@ -76,11 +111,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const email = searchParams.get("user-name");
-    const applicationStatus = searchParams.get("application-status");
+    // Fetch schema so we can confirm the correct slugs
+    const schema = await fetchCollectionSchema(collectionId, apiToken);
+    console.log("[v1] Collection schema fields:", schema.fields);
 
-    const filters = { userName: email || undefined, applicationStatus };
+    const email = params.params?.[0]
+      ? decodeURIComponent(params.params[0])
+      : null;
+    console.log("[v1] Extracted email from path:", email);
+
+    const { searchParams } = new URL(request.url);
+    const applicationStatus = searchParams.get("application-status");
+    console.log("[v1] Application status:", applicationStatus);
+
+    const filters = { userName: email, applicationStatus };
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
@@ -88,17 +132,19 @@ export async function GET(request: NextRequest) {
       siteId,
       filters
     );
-    console.log(
-      "Collection Data Raw:",
-      JSON.stringify(collectionData, null, 2)
-    );
 
     return NextResponse.json(
-      { success: true, data: collectionData.items ?? [] },
+      {
+        success: true,
+        data: collectionData,
+        filters,
+        schema, // include schema in response temporarily for debugging
+        timestamp: new Date().toISOString(),
+      },
       { status: 200, headers: corsHeaders() }
     );
   } catch (error) {
-    console.error("GET error:", error);
+    console.error("[v1] GET error:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch collection data",
