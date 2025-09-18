@@ -156,6 +156,8 @@ export async function POST(request: NextRequest) {
 
 // Handle GET request for manual data retrieval
 export async function GET(request: NextRequest) {
+  console.log("[v2] GET request received:", request.url);
+
   try {
     const apiToken = process.env.WEBFLOW_API_TOKEN;
     const siteId = process.env.WEBFLOW_SITE_ID;
@@ -169,31 +171,50 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const filters = {
-      userName: searchParams.get("user-name") || searchParams.get("userName"),
-      applicationStatus:
-        searchParams.get("application-status") ||
-        searchParams.get("applicationStatus"),
-    };
+    const userName =
+      searchParams.get("user-name") || searchParams.get("userName");
+    const applicationStatus =
+      searchParams.get("application-status") ||
+      searchParams.get("applicationStatus");
+
+    console.log("[v2] GET Filters:", { userName, applicationStatus });
 
     const collectionData = await fetchWebflowCollection(
       collectionId,
       apiToken,
-      siteId,
-      filters
+      siteId
     );
+
+    const items = collectionData?.items || [];
+    console.log("[v2] GET Total items fetched:", items.length);
+
+    let filtered = items;
+    if (userName || applicationStatus) {
+      filtered = items.filter((item: any) => {
+        const matchesUser = !userName || item.fieldData?.name === userName;
+        const matchesStatus =
+          !applicationStatus ||
+          item.fieldData?.["application-status"]?.toLowerCase() ===
+            applicationStatus?.toLowerCase();
+        return matchesUser && matchesStatus;
+      });
+    }
+
+    console.log("[v2] GET Returning items:", filtered.length);
 
     return NextResponse.json(
       {
         success: true,
-        data: collectionData,
-        filters: filters,
+        count: filtered.length,
+        data: filtered,
+        filters: { userName, applicationStatus },
         timestamp: new Date().toISOString(),
+        method: "GET",
       },
       { status: 200, headers: corsHeaders() }
     );
   } catch (error) {
-    console.error("GET request error:", error);
+    console.error("[v2] GET request error:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch collection data",
